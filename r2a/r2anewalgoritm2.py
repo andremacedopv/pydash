@@ -51,10 +51,10 @@ class R2ANewAlgoritm2(IR2A):
 
         # estimate the possibility to increase or decrease quality
         avg_throughput = mean(self.throughputs)
-        sigma2 = sum([(i * (self.throughputs[i] - avg_throughput)) for i in range(len(self.throughputs))]) / len(self.throughputs)
+        sigma2 = sum([abs((i * (self.throughputs[i] - avg_throughput))) for i in range(len(self.throughputs))]) / len(self.throughputs)
         p = (avg_throughput) / (avg_throughput + sigma2)
-        tau = p * self.qi[max(0, self.index_selected_qi - 1)]
-        theta = (1 - p) * self.qi[min(len(self.qi) - 1, self.index_selected_qi + 1)]
+        tau = (1 - p) * self.qi[max(0, self.index_selected_qi - 1)]
+        theta = p * self.qi[min(len(self.qi) - 1, self.index_selected_qi + 1)]
 
         # selects the closest qi to tau + theta
         diff_list = [abs(qi - tau + theta) for qi in self.qi] 

@@ -59,8 +59,9 @@ class R2ANewAlgoritm1(IR2A):
         m = self.bandwith_share - self.throughput + self.w
         self.bandwith_share = self.bandwith_share + self.interrequest_time * self.k * (self.w - max(0,m))
 
+        print(self.smoothed_bw)
         # Smoothing
-        self.smoothed_bw = self.interrequest_time*(-self.smoothing_rate * (self.smoothed_bw - self.bandwith_share)) + self.smoothed_bw
+        self.smoothed_bw = (-min(1,self.interrequest_time*self.smoothing_rate) * (self.smoothed_bw - self.bandwith_share)) + self.smoothed_bw
 
         # Quantization
         delta_up = self.safety_margin * self.smoothed_bw
@@ -68,6 +69,7 @@ class R2ANewAlgoritm1(IR2A):
         print(self.bandwith_share)
         print(self.interrequest_time)
         print(self.throughput)
+        print(delta_up)
         Rup = max([i for i in self.qi if i <= (self.smoothed_bw - delta_up)])
         Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)])
         print(Rup)
