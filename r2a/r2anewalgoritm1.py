@@ -46,6 +46,8 @@ class R2ANewAlgoritm1(IR2A):
         self.download_duration = time.perf_counter() - self.request_time
         self.interrequest_time = self.download_duration
         self.throughput = msg.get_bit_length() / self.download_duration
+        self.bandwith_share = self.throughput
+        self.smoothed_bw = self.throughput
 
         self.send_up(msg)
 
@@ -68,6 +70,8 @@ class R2ANewAlgoritm1(IR2A):
         print(self.throughput)
         Rup = max([i for i in self.qi if i <= (self.smoothed_bw - delta_up)])
         Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)])
+        print(Rup)
+        print(Rdown)
 
         if self.selected_qi < Rup:
             self.selected_qi = Rup
@@ -75,9 +79,11 @@ class R2ANewAlgoritm1(IR2A):
             pass
         else:
             self.selected_qi = Rdown
+        
+        print(self.selected_qi)
 
         # Calculate target inter-request
-        buffer = 0 if len(self.whiteboard.get_playback_buffer_size()) == 0 else self.whiteboard.get_playback_buffer_size()[-1]
+        buffer = 0 if len(self.whiteboard.get_playback_buffer_size()) == 0 else self.whiteboard.get_playback_buffer_size()[-1][1]
 
         target_interrequest = (self.selected_qi/self.smoothed_bw) + self.buffer_convergence * (buffer - self.buffer_min)
         self.interrequest_time = max(target_interrequest, self.download_duration)
