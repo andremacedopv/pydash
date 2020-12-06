@@ -5,13 +5,12 @@
 
 from r2a.ir2a import IR2A
 from player.parser import *
-from player.player import Player
 from base.whiteboard import Whiteboard
 import time
 from statistics import mean
 
 
-class R2ANewAlgoritm1(IR2A):
+class Safe(IR2A):
 
     def __init__(self, id):
         IR2A.__init__(self, id)
@@ -33,7 +32,6 @@ class R2ANewAlgoritm1(IR2A):
         self.safety_margin = 0.15
         self.buffer_convergence = 0.2
         self.buffer_min = 5
-        self.buffer_threshold = 0.7
 
     def handle_xml_request(self, msg):
         self.request_time = time.perf_counter()
@@ -61,8 +59,6 @@ class R2ANewAlgoritm1(IR2A):
         m = self.bandwith_share - self.throughput + self.w
         print(m)
         self.bandwith_share = self.bandwith_share + self.interrequest_time * self.k * (self.w - max(0,m))
-        if self.bandwith_share < 0:
-            self.bandwith_share = self.throughput
 
         print(self.smoothed_bw)
         # Smoothing
@@ -75,43 +71,17 @@ class R2ANewAlgoritm1(IR2A):
         print(self.interrequest_time)
         print(self.throughput)
         print(delta_up)
-        Rup = []
-        Rdown = []
-        for i in self.qi:
-            if i == self.qi[0]:
-                Rup.append(i)
-                Rdown.append(i)
-            else:
-                if i <= (self.smoothed_bw - delta_up):
-                    Rup.append(i)
-                if i <= (self.smoothed_bw):
-                    Rdown.append(i)
-        Rup = max(Rup)
-        Rdown = max(Rdown)
-
-        # Rup = max([i for i in self.qi if i <= (self.smoothed_bw - delta_up)].append(self.selected_qi[0]))
-        # Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)].append(self.selected_qi[0]))
+        Rup = max([i for i in self.qi if i <= (self.smoothed_bw - delta_up)])
+        Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)])
         print(Rup)
         print(Rdown)
-        
-        new_qi = self.selected_qi
 
         if self.selected_qi < Rup:
-            new_qi = Rup
+            self.selected_qi = Rup
         elif self.selected_qi <= Rdown:
             pass
         else:
-            new_qi = Rdown
-
-        if len(self.whiteboard.get_playback_buffer_size()) > 0:
-            buffer_size = self.whiteboard.get_playback_buffer_size()[-1][1]
-        else:
-            buffer_size = 0
-
-        if (new_qi < self.selected_qi) or (buffer_size > self.whiteboard.get_max_buffer_size() * self.buffer_threshold):
-            self.selected_qi = new_qi
-        else:
-            pass
+            self.selected_qi = Rdown
         
         print(self.selected_qi)
 
