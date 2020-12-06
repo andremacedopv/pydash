@@ -5,8 +5,6 @@
 
 from r2a.ir2a import IR2A
 from player.parser import *
-from player.player import Player
-from base.whiteboard import Whiteboard
 import time
 from statistics import mean
 
@@ -18,8 +16,9 @@ class R2ANewAlgoritm1(IR2A):
         self.request_time = 0
         self.qi = []
         self.buffer_size = self.whiteboard.get_max_buffer_size()
-
         self.throughput = 0
+
+        # Panda calculations variables
         self.download_duration = 0
         self.interrequest_time = 0
         self.bandwith_share = 0
@@ -27,8 +26,8 @@ class R2ANewAlgoritm1(IR2A):
         self.selected_qi = 0
         
         # Constants
-        self.w = 300000
-        self.k = 0.14
+        self.additive_increase = 300000
+        self.convergence_rate = 0.14
         self.smoothing_rate = 0.2
         self.safety_margin = 0.15
         self.buffer_convergence = 0.2
@@ -37,20 +36,22 @@ class R2ANewAlgoritm1(IR2A):
 
     def handle_xml_request(self, msg):
         self.request_time = time.perf_counter()
+
         self.send_down(msg)
 
     def handle_xml_response(self, msg):
-
+        # Get quality values and define first selected quality
         parsed_mpd = parse_mpd(msg.get_payload())
         self.qi = parsed_mpd.get_qi()
-        self.selected_qi = self.qi[0]
 
+        # Get first calculations for the algorithm
         self.download_duration = time.perf_counter() - self.request_time
         self.interrequest_time = self.download_duration
         self.throughput = msg.get_bit_length() / self.download_duration
         self.bandwith_share = self.throughput
         self.smoothed_bw = self.throughput
 
+        # Get initial quality value
         for i in self.qi:
             if self.throughput/2 > i:
                 self.selected_qi = i
@@ -58,55 +59,48 @@ class R2ANewAlgoritm1(IR2A):
         self.send_up(msg)
 
     def handle_segment_size_request(self, msg):
-
         self.request_time = time.perf_counter()
 
-        # Estimate bandwith share
-        m = self.bandwith_share - self.throughput + self.w
-        print(m)
-        self.bandwith_share = self.bandwith_share + self.interrequest_time * self.k * (self.w - max(0,m))
+        # Step 1 - Estimate bandwith share:
+        # Calculate the additive-increase-multiplicative-increase term 
+        m = self.bandwith_share - self.throughput + self.additive_increase
+        AIMD = self.convergence_rate * (self.additive_increase - max(0,m))
+
+        # Calculate the bandwith share
+        self.bandwith_share = self.bandwith_share + self.interrequest_time * AIMD
+        # Fallback to throughput in case of negative value 
         if self.bandwith_share < 0:
             self.bandwith_share = self.throughput
 
-        print(self.smoothed_bw)
-        # Smoothing
-        self.smoothed_bw = (-min(1,self.interrequest_time*self.smoothing_rate) * (self.smoothed_bw - self.bandwith_share)) + self.smoothed_bw
+        # Step 2 - Calculate the exponencial smoothing (EWMA):
+        self.smoothed_bw = (-min(1,self.interrequest_time * self.smoothing_rate) * (self.smoothed_bw - self.bandwith_share)) + self.smoothed_bw
 
-        # Quantization
+        # Step 3 - Implement the dead-zone quantifier
+        # Calculate the upshift safety margin
         delta_up = self.safety_margin * self.smoothed_bw
-        print(self.smoothed_bw)
-        print(self.bandwith_share)
-        print(self.interrequest_time)
-        print(self.throughput)
-        print(delta_up)
+        
+        # Get possible qualities for the upshift and downshift threshold
         Rup = []
         Rdown = []
         for i in self.qi:
-            if i == self.qi[0]:
+            if (i == self.qi[0]) or (i <= (self.smoothed_bw - delta_up)):
                 Rup.append(i)
+            if (i == self.qi[0]) or (i <= (self.smoothed_bw)):
                 Rdown.append(i)
-            else:
-                if i <= (self.smoothed_bw - delta_up):
-                    Rup.append(i)
-                if i <= (self.smoothed_bw):
-                    Rdown.append(i)
+        # Get the best quality possible for the thresholds
         Rup = max(Rup)
         Rdown = max(Rdown)
-
-        # Rup = max([i for i in self.qi if i <= (self.smoothed_bw - delta_up)].append(self.selected_qi[0]))
-        # Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)].append(self.selected_qi[0]))
-        print(Rup)
-        print(Rdown)
         
+        # Step 4 - Select the new quality
         new_qi = self.selected_qi
-
         if self.selected_qi < Rup:
             new_qi = Rup
         elif self.selected_qi <= Rdown:
             pass
         else:
             new_qi = Rdown
-
+        
+        # Change the quality only if it decreases or buffer is sufficiently full
         if len(self.whiteboard.get_playback_buffer_size()) > 0:
             buffer_size = self.whiteboard.get_playback_buffer_size()[-1][1]
         else:
@@ -116,13 +110,12 @@ class R2ANewAlgoritm1(IR2A):
             self.selected_qi = new_qi
         else:
             pass
-        
-        print(self.selected_qi)
 
-        # Calculate target inter-request
-        buffer = 0 if len(self.whiteboard.get_playback_buffer_size()) == 0 else self.whiteboard.get_playback_buffer_size()[-1][1]
+        # Step 5 - Calculate the interrequest time
+        # Calcutate the target interrequest
+        target_interrequest = (self.selected_qi/self.smoothed_bw) + self.buffer_convergence * (buffer_size - self.buffer_min)
 
-        target_interrequest = (self.selected_qi/self.smoothed_bw) + self.buffer_convergence * (buffer - self.buffer_min)
+        # Select the interrequest as the highest among the target or the download duration
         self.interrequest_time = max(target_interrequest, self.download_duration)
 
         msg.add_quality_id(self.selected_qi)
@@ -131,6 +124,7 @@ class R2ANewAlgoritm1(IR2A):
     def handle_segment_size_response(self, msg):
         self.download_duration = time.perf_counter() - self.request_time
         self.throughput = msg.get_bit_length() / self.download_duration
+
         self.send_up(msg)
 
     def initialize(self):
