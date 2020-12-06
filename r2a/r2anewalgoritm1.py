@@ -33,7 +33,7 @@ class R2ANewAlgoritm1(IR2A):
         self.safety_margin = 0.15
         self.buffer_convergence = 0.2
         self.buffer_min = 5
-        self.buffer_threshold = 0.7
+        self.buffer_threshold = 0.5
 
     def handle_xml_request(self, msg):
         self.request_time = time.perf_counter()
@@ -50,6 +50,10 @@ class R2ANewAlgoritm1(IR2A):
         self.throughput = msg.get_bit_length() / self.download_duration
         self.bandwith_share = self.throughput
         self.smoothed_bw = self.throughput
+
+        for i in self.qi:
+            if self.throughput/2 > i:
+                self.selected_qi = i
 
         self.send_up(msg)
 
