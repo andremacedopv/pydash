@@ -5,6 +5,7 @@
 
 from r2a.ir2a import IR2A
 from player.parser import *
+from player.player import Player
 from base.whiteboard import Whiteboard
 import time
 from statistics import mean
@@ -32,6 +33,7 @@ class R2ANewAlgoritm1(IR2A):
         self.safety_margin = 0.15
         self.buffer_convergence = 0.2
         self.buffer_min = 5
+        self.buffer_threshold = 0.7
 
     def handle_xml_request(self, msg):
         self.request_time = time.perf_counter()
@@ -74,13 +76,25 @@ class R2ANewAlgoritm1(IR2A):
         Rdown = max([i for i in self.qi if i <= (self.smoothed_bw)])
         print(Rup)
         print(Rdown)
+        
+        new_qi = self.selected_qi
 
         if self.selected_qi < Rup:
-            self.selected_qi = Rup
+            new_qi = Rup
         elif self.selected_qi <= Rdown:
             pass
         else:
-            self.selected_qi = Rdown
+            new_qi = Rdown
+
+        if len(self.whiteboard.get_playback_buffer_size()) > 0:
+            buffer_size = self.whiteboard.get_playback_buffer_size()[-1][1]
+        else:
+            buffer_size = 0
+
+        if buffer_size > self.whiteboard.get_max_buffer_size() * self.buffer_threshold:
+            self.selected_qi = new_qi
+        else:
+            pass
         
         print(self.selected_qi)
 
