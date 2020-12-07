@@ -1,7 +1,7 @@
 # Grupo 10 - TR1
-# André Macedo - 170005950
-# Danilo Inácio
-# Felipe Lima
+# André Macedo Prado Valle - 170005950
+# Danilo Inácio dos Santos Silva - 17/0031861
+# Felipe Lima Vaz - 17/007852
 
 from r2a.ir2a import IR2A
 from player.parser import *
