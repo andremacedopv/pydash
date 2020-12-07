@@ -59,10 +59,8 @@ class R2ANewAlgoritm1(IR2A):
         self.send_up(msg)
 
     def handle_segment_size_request(self, msg):
-        self.request_time = time.perf_counter()
-
         # Step 1 - Estimate bandwith share:
-        # Calculate the additive-increase-multiplicative-increase term 
+        # Calculate the additive-increase-multiplicative-decrease term 
         m = self.bandwith_share - self.throughput + self.additive_increase
         AIMD = self.convergence_rate * (self.additive_increase - max(0,m))
 
@@ -91,7 +89,7 @@ class R2ANewAlgoritm1(IR2A):
         Rup = max(Rup)
         Rdown = max(Rdown)
         
-        # Step 4 - Select the new quality
+        # Select the new quality
         new_qi = self.selected_qi
         if self.selected_qi < Rup:
             new_qi = Rup
@@ -100,7 +98,7 @@ class R2ANewAlgoritm1(IR2A):
         else:
             new_qi = Rdown
         
-        # Change the quality only if it decreases or buffer is sufficiently full
+        # Step 4 - Change the quality only if it decreases or buffer is sufficiently full
         if len(self.whiteboard.get_playback_buffer_size()) > 0:
             buffer_size = self.whiteboard.get_playback_buffer_size()[-1][1]
         else:
@@ -119,6 +117,8 @@ class R2ANewAlgoritm1(IR2A):
         self.interrequest_time = max(target_interrequest, self.download_duration)
 
         msg.add_quality_id(self.selected_qi)
+
+        self.request_time = time.perf_counter()
         self.send_down(msg)
 
     def handle_segment_size_response(self, msg):
